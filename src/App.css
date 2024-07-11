@@ -14,7 +14,10 @@ body {height: 100vh;}
   flex-wrap: wrap;
 }
 
-#chessboard {position: relative;}
+#chessboard {
+  position: relative;
+  align-self: center;
+}
 
 #buttons {
   position: absolute;
@@ -25,4 +28,14 @@ body {height: 100vh;}
   height: 100%;
   grid-template-columns: repeat(8, 1fr);
   grid-template-rows: repeat(8, 1fr);
+}
+
+#upperArea {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+h1 {
+  margin: 0;
 }

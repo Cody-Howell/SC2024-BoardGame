@@ -12,6 +12,10 @@ class App extends React.Component {
     }
   }
 
+  componentDidMount() {
+    
+  }
+
   updateColor = (value) => {
     let hex = value.target.value;
 
@@ -34,16 +38,38 @@ class App extends React.Component {
     game.clickArea(x, y);
     this.setState({game: game});
   }
+  
+  resetGame = () => {
+    let game = this.state.game;
+    game.resetBoard();
+    this.setState({game: game});
+  }
 
   render() {
+    let whitePoints = this.state.game.getPoints(true);
+    let blackPoints = this.state.game.getPoints(false);
+
+    if (whitePoints >= blackPoints){ 
+      whitePoints -= blackPoints;
+      blackPoints = 0;
+    } else {
+      blackPoints -= whitePoints;
+      whitePoints = 0;
+    }
+    let winner = this.state.game.calculateWinner();
     return (
       <div id="App">
-        <h1>Chess</h1>
-        {/* <label htmlFor='lightColor'>Change Board Color: </label>
-        <input type='color' name='lightColor' id='lightColor' defaultValue={this.state.lightColor} onBlur={this.updateColor} /> */}
-        <p>Selection: {JSON.stringify(this.state.game.selectedSquare)} <br/>
-          Turn: {this.state.game.whiteMove ? "White turn" : "Black turn"}
-        </p>
+        <div id='upperArea'>
+          <h1>Chess</h1>
+          <div>
+            <label htmlFor='lightColor'>Change Board Color: </label>
+            <input type='color' name='lightColor' id='lightColor' defaultValue={this.state.lightColor} onChange={this.updateColor} />
+          </div>
+          <p>Turn: {this.state.game.whiteMove ? "White turn" : "Black turn"} <br/>
+            White score: +{whitePoints} | Black score: +{blackPoints} <br/>
+            {winner !== null && (<>Winner is: {winner}</>)}
+          </p>
+        </div>
         <ChessBoard 
           lightColor={this.state.lightColor} 
           darkColor={this.state.darkColor} 
@@ -53,6 +79,10 @@ class App extends React.Component {
           possibleMoves={this.state.game.possibleMoves}
           updateGame={this.clickCoordinates}
           />
+        <p>Developed by Cody Howell <br/>
+          Does not allow for en passant or castling. I wanted to attempt making a bot instead.<br/>
+          <button onClick={this.resetGame}>Reset Game</button>
+          </p>
       </div>
     );
   }
@@ -114,8 +144,7 @@ class ChessBoard extends React.Component {
       this.drawPiece(blackPieces[i].piece, blackPieces[i].location.x, 7 - blackPieces[i].location.y);
     }
 
-    // Draw possible moves TODO
-    // console.log(this.props.possibleMoves);
+    // Draw possible moves
     if (this.props.possibleMoves !== null){
       for (let i = 0; i < this.props.possibleMoves.length; i++){
         this.drawPiece('z', this.props.possibleMoves[i].x, 7 - this.props.possibleMoves[i].y)
@@ -145,12 +174,12 @@ class ChessBoard extends React.Component {
         this.ctx.lineTo(lowerX + 50, lowerY + 15);
         this.ctx.lineTo(lowerX + 60, lowerY + 60);
         break;
-        case 'b': 
+      case 'b': 
         this.ctx.moveTo(lowerX + 40, lowerY + 70);
         this.ctx.lineTo(lowerX + 20, lowerY + 60);
-        this.ctx.lineTo(lowerX + 32, lowerY + 45);
+        this.ctx.lineTo(lowerX + 32, lowerY + 48);
         this.ctx.quadraticCurveTo(lowerX + 20, lowerY + 30, lowerX + 40, lowerY + 15);
-        this.ctx.quadraticCurveTo(lowerX + 60, lowerY + 30, lowerX + 48, lowerY + 45);
+        this.ctx.quadraticCurveTo(lowerX + 60, lowerY + 30, lowerX + 48, lowerY + 48);
         this.ctx.lineTo(lowerX + 60, lowerY + 60);
         break;
       case 'q': 
@@ -202,7 +231,7 @@ class ChessBoard extends React.Component {
         this.ctx.lineTo(lowerX + 60, lowerY + 60);
         break;
       case 'z': // Possible move display
-        const gradient = this.ctx.createRadialGradient(lowerX + 40, lowerY + 40, 1, lowerX + 40, lowerY + 40, 40);
+        const gradient = this.ctx.createRadialGradient(lowerX + 40, lowerY + 40, 1, lowerX + 40, lowerY + 40, 38);
         gradient.addColorStop(0, "black");
         gradient.addColorStop(1, "transparent");
         this.ctx.fillStyle = gradient;
