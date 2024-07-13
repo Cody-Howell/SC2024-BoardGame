@@ -1,3 +1,5 @@
+import * as tf from '@tensorflow/tfjs';
+
 export class Chess {
   whitePieces: Array<Piece>;
   blackPieces: Array<Piece>;
@@ -5,7 +7,8 @@ export class Chess {
   possibleMoves: Array<Square> | null;
   whiteMove: boolean; // If it's white's turn, mark as true.
   moveCount: number;
-  previousMove: Square;
+  previousMoves: Array<Square>;
+  modelReward: number;
 
 
   constructor() {
@@ -15,13 +18,16 @@ export class Chess {
     this.possibleMoves = null;
     this.whiteMove = true;
     this.moveCount = 0;
+    this.modelReward = 0;
     this.resetBoard();
   }
 
   resetBoard() {
     this.whitePieces = [];
     this.blackPieces = [];
+    this.previousMoves = [];
     this.moveCount = 0;
+    this.whiteMove = true;
     this.whitePieces.push({ piece: 'k', location: { x: 4, y: 0 } });
     this.blackPieces.push({ piece: 'k', location: { x: 4, y: 7 } });
     this.whitePieces.push({ piece: 'q', location: { x: 3, y: 0 } });
@@ -57,7 +63,7 @@ export class Chess {
   }
 
   clickArea(x: BoardCoord, y: BoardCoord) {
-    if (this.selectedSquare !== null) {
+    if (!this.isGameOver() && this.selectedSquare !== null) {
       let value = this.checkSelectedSquare(x!, y!);
       if (this.checkPossibleMoves({ x: x, y: y })) {
         let pieceIndex = this.checkSelectedSquare(this.selectedSquare.location.x!, this.selectedSquare.location.y!);
@@ -87,7 +93,6 @@ export class Chess {
         }
       }
     }
-    if (this.whiteMove) { this.moveCount++; }
   }
 
   performMove(pieceIndex: number, to: Square) {
@@ -96,16 +101,19 @@ export class Chess {
       this.whitePieces[pieceIndex].location.x = to.x;
       this.whitePieces[pieceIndex].location.y = to.y;
       if (capturePiece !== null) {
+        this.modelReward = 0.1;
         this.blackPieces.splice(capturePiece.index, 1);
       }
     } else {
       this.blackPieces[pieceIndex].location.x = to.x;
       this.blackPieces[pieceIndex].location.y = to.y;
       if (capturePiece !== null) {
+        this.modelReward = 0.1;
         this.whitePieces.splice(capturePiece.index, 1);
       }
     }
-    this.previousMove = to;
+    this.previousMoves.push(to);
+    if (this.whiteMove) { this.moveCount++; }
   }
 
   checkPossibleMoves(spot: Square): boolean {
@@ -210,7 +218,7 @@ export class Chess {
             let possibleSquare: Square = { x: addCoord(piece.location.x, i * xMultiply), y: addCoord(piece.location.y, i * yMultiply) };
             if (possibleSquare.x === null || possibleSquare.y === null) { break; }
             let testPiece = this.checkSelectedSquare(possibleSquare.x, possibleSquare.y);
-            if (testPiece !== null){
+            if (testPiece !== null) {
               if (testPiece.white === whiteTurn) {
                 break; // Same color
               } else {
@@ -226,7 +234,7 @@ export class Chess {
       case 'r':
         let directions: Array<Array<number>> = [[0, 1], [0, -1], [1, 0], [-1, 0]]
         for (let i = 0; i <= 3; i++) {
-          let xMultiply = directions[i][0]; 
+          let xMultiply = directions[i][0];
           let yMultiply = directions[i][1];
           for (let i = 1; i < 8; i++) {
             let possibleSquare: Square = { x: addCoord(piece.location.x, i * xMultiply), y: addCoord(piece.location.y, i * yMultiply) };
@@ -313,9 +321,9 @@ export class Chess {
       // Calculate checks here and remove invalid moves
       // Done here to simplify earlier, and since I was getting infinite recursion
       let currentPiece = this.checkSelectedSquare(piece.location.x!, piece.location.y!);
-      for (let i = 0; i < array.length; i++){
+      for (let i = 0; i < array.length; i++) {
         let possibleCapture = this.checkSelectedSquare(array[i].x!, array[i].y!) === null ? false : true;
-        if (this.calculateCheck(currentPiece?.index!, array[i], possibleCapture)){
+        if (this.calculateCheck(currentPiece?.index!, array[i], possibleCapture)) {
           array.splice(i, 1);
           i--;
         }
@@ -345,6 +353,10 @@ export class Chess {
         if (piece !== null) {
           this.whitePieces.splice(piece?.index!, 1);
         }
+      }
+      if (this.blackPieces[index] === undefined){
+        console.log("Is undefined: " + index);
+        console.log(this);
       }
       oldLocation = this.blackPieces[index].location;
       this.blackPieces[index].location = to;
@@ -428,19 +440,105 @@ export class Chess {
   }
 
   calculateWinner(): GameWinner {
-    if (this.whiteMove){
-      for (let i = 0; i < this.whitePieces.length; i++){
+    if (this.moveCount >= 120) { // :P I'm SOO lazy to not calculate every possible dead position
+      this.modelReward = 1; 
+      return 'draw'; 
+    } 
+    if (this.whiteMove) {
+      for (let i = 0; i < this.whitePieces.length; i++) {
         let array = this.calculatePossibleMoves(this.whitePieces[i], true, false);
-        if (array.length !== 0) { return null; }
+        if (array.length !== 0) { return null; } // There are legal moves left
       }
-      return 'black';
+      if (this.isKingInCheck()) { // Checkmate
+        return 'black';
+      }
     } else {
-      for (let i = 0; i < this.blackPieces.length; i++){
+      for (let i = 0; i < this.blackPieces.length; i++) {
         let array = this.calculatePossibleMoves(this.blackPieces[i], false, false);
         if (array.length !== 0) { return null; }
       }
-      return 'white';
+      if (this.isKingInCheck()) {
+        return 'white';
+      }
     }
+    return 'draw'; // Stalemate!
+  }
+
+
+
+
+
+  // Functions for the model to work with
+  isGameOver(): boolean {
+    let result = this.calculateWinner();
+    if (result === null) { return false; }
+    return true;
+  }
+
+  getBoardState(): Array<number> {
+    const boardState = new Array(8 * 8 * 12).fill(0);
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = this.checkSelectedSquare(row, col);  // Your method to get the piece at (row, col)
+        if (piece !== null) {
+          const pieceIndex = this.getPieceIndex(piece);  // Your method to get the one-hot index
+          boardState[(row * 8 + col) * 12 + pieceIndex] = 1;
+        }
+      }
+    }
+    return boardState;
+  }
+
+  getPieceIndex(piece: { piece: Piece, white: boolean, index: number }): number {
+    switch (piece.piece.piece) { 
+      case 'p': return piece.white ? 0 : 6;
+      case 'n': return piece.white ? 1 : 7;
+      case 'b': return piece.white ? 2 : 8;
+      case 'r': return piece.white ? 3 : 9;
+      case 'q': return piece.white ? 4 : 10;
+      case 'k': return piece.white ? 5 : 11;
+    }
+  }
+
+  getReward(): number {
+    let returnValue = this.modelReward;
+    this.modelReward = 0;
+    return returnValue;
+  }
+
+  makeMove(move: number) {
+    const startRow = Math.floor(move / 512);
+    const startCol = Math.floor((move % 512) / 64);
+    const endRow = Math.floor((move % 64) / 8);
+    const endCol = move % 8;
+    // console.log(`Coordinates: (${startRow}, ${startCol}), to (${endRow}, ${endCol}) from number: ${move}`);
+
+    this.clickArea(startRow as BoardCoord, startCol as BoardCoord);
+    this.clickArea(endRow as BoardCoord, endCol as BoardCoord);
+  }
+
+  getLegalMovesMask(): Array<number> {
+    let mask = new Array(4096).fill(0);
+    let arrayOfMoves: Array<number> = [];
+
+    for (let startRow = 0; startRow < 8; startRow++) {
+      for (let startCol = 0; startCol < 8; startCol++) {
+        const piece = this.checkSelectedSquare(startRow, startCol);
+        if (piece !== null && piece.white === this.whiteMove) {
+          const possibleMoves = this.calculatePossibleMoves(piece.piece, this.whiteMove, false);
+
+          for (let move of possibleMoves) {
+            const endRow = move.x;
+            const endCol = move.y;
+            const moveIndex = (startRow * 512) + (startCol * 64) + (endRow! * 8) + endCol!;
+            arrayOfMoves.push(moveIndex);
+            mask[moveIndex] = 1;
+          }
+        }
+      }
+    }
+
+    return mask;
   }
 }
 
@@ -457,7 +555,7 @@ type Square = {
 // I never knew this type specification would be so useful! 
 type PieceChar = 'k' | 'q' | 'r' | 'b' | 'n' | 'p';
 type BoardCoord = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | null;
-type GameWinner = 'black' | 'white' | null;
+type GameWinner = 'black' | 'white' | 'draw' | null;
 
 // *sigh* I'd rather not this exist. 
 function addCoord(coord: BoardCoord, increment: number): BoardCoord {

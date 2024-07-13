@@ -1,6 +1,7 @@
 import './App.css';
 import React from 'react';
 import { Chess } from './Chess.ts';
+import { train, initializeModel, playMove } from './model.ts';
 
 class App extends React.Component {
   constructor(props) {
@@ -8,12 +9,9 @@ class App extends React.Component {
     this.state = {
       darkColor: "#666666",
       lightColor: "#dddddd",
-      game: new Chess()
+      game: new Chess(),
+      model: initializeModel()
     }
-  }
-
-  componentDidMount() {
-    
   }
 
   updateColor = (value) => {
@@ -38,6 +36,24 @@ class App extends React.Component {
     game.clickArea(x, y);
     this.setState({game: game});
   }
+  
+  // train = async () => {
+  //   let model = this.state.model;
+  //   await train(model, 50);
+  //   // await model.save('localstorage://chess-bot-model');
+  //   this.setState({model: model});
+  // }
+
+  // download = async () => {
+  //   await this.state.model.save('download://chess-bot-model');
+  // }
+
+  // playMove = async () => {
+  //   let model = this.state.model;
+  //   let game = this.state.game;
+  //   game = await playMove(model, game);
+  //   this.setState({game: game});
+  // }
   
   resetGame = () => {
     let game = this.state.game;
@@ -67,8 +83,11 @@ class App extends React.Component {
           </div>
           <p>Turn: {this.state.game.whiteMove ? "White turn" : "Black turn"} <br/>
             White score: +{whitePoints} | Black score: +{blackPoints} <br/>
+            Move: {this.state.game.moveCount} <br/>
             {winner !== null && (<>Winner is: {winner}</>)}
           </p>
+          {/* <button onClick={this.train}>Train</button>
+          <button onClick={this.download}>Download Bot</button> */}
         </div>
         <ChessBoard 
           lightColor={this.state.lightColor} 
@@ -81,6 +100,7 @@ class App extends React.Component {
           />
         <p>Developed by Cody Howell <br/>
           Does not allow for en passant or castling. I wanted to attempt making a bot instead.<br/>
+          It didn't work. 
           <button onClick={this.resetGame}>Reset Game</button>
           </p>
       </div>
